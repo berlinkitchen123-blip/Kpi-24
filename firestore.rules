@@ -10,7 +10,8 @@ service cloud.firestore {
 
     function signedIn() { return request.auth != null; }
     function roleIn(cityId) {
-      return signedIn() && request.auth.token.roles is map && cityId in request.auth.token.roles
+      return signedIn() && ("roles" in request.auth.token) && request.auth.token.roles is map
+          && cityId in request.auth.token.roles
         ? request.auth.token.roles[cityId]
         : (signedIn() && cityId == "remscheid" ? "manager" : null);
     }
