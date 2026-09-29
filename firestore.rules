@@ -1,10 +1,10 @@
 rules_version = '2';
 
 // No login screen (single-user setup, by request): anyone who opens the app is
-// auto-signed-in anonymously and treated as manager of "essen". Roles from
+// auto-signed-in anonymously and treated as manager of "remscheid". Roles from
 // custom claims (set by the bootstrap script) still take priority if present.
-// NOTE: this means anyone with the app URL has full manager access to "essen" —
-// there is no password or identity check in front of Firestore anymore.
+// NOTE: this means anyone with the app URL has full manager access to
+// "remscheid" — there is no password or identity check in front of Firestore anymore.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -12,7 +12,7 @@ service cloud.firestore {
     function roleIn(cityId) {
       return signedIn() && request.auth.token.roles is map && cityId in request.auth.token.roles
         ? request.auth.token.roles[cityId]
-        : (signedIn() && cityId == "essen" ? "manager" : null);
+        : (signedIn() && cityId == "remscheid" ? "manager" : null);
     }
     function isManager(cityId)    { return roleIn(cityId) == "manager"; }
     function isStaff(cityId)      { return roleIn(cityId) == "staff"; }

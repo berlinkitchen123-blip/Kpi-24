@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cityId, setCityId] = useState<string | null>(null);
 
   // No login screen: every visitor is auto-signed-in anonymously and treated as
-  // City Manager of "essen". Single-user setup by request — see firestore.rules,
+  // City Manager of "remscheid". Single-user setup by request — see firestore.rules,
   // which grants manager access to any signed-in (incl. anonymous) user.
   useEffect(() => {
     if (isDemo) return;
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const token = await u.getIdTokenResult(true);
       const claimRoles = (token.claims.roles ?? {}) as CityRoles;
-      const roles: CityRoles = { essen: "manager", ...claimRoles };
+      const roles: CityRoles = { remscheid: "manager", ...claimRoles };
       setUser({ uid: u.uid, name: u.displayName ?? u.email ?? "Harsh", email: u.email ?? "", roles });
       setLoading(false);
     });
