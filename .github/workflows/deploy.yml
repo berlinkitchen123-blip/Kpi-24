@@ -1,6 +1,8 @@
 name: Deploy
 
-# Push to main -> build web app + functions -> deploy hosting, rules, functions.
+# Push to main -> build web app -> deploy hosting + Firestore rules.
+# Cloud Functions need the Blaze plan (Google requirement, not our choice) so
+# they're left out for now; add "functions" back to --only once Blaze is on.
 # Needs one GitHub secret (Settings -> Secrets and variables -> Actions):
 #   FIREBASE_SERVICE_ACCOUNT  = JSON of the Firebase service account key (never commit it)
 on:
@@ -26,9 +28,7 @@ jobs:
           cache: npm
 
       - name: Install
-        run: |
-          npm ci
-          npm ci --prefix functions
+        run: npm ci
 
       - name: Build web app
         # Firebase web config comes from .env.production (public values, safe to commit)
@@ -40,4 +40,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
-        run: npx --yes firebase-tools@latest deploy --project "kpi-24" --only hosting,firestore,functions --non-interactive --force
+        run: npx --yes firebase-tools@latest deploy --project "kpi-24" --only hosting,firestore --non-interactive --force
