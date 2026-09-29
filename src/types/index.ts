@@ -86,6 +86,15 @@ export interface Revenue {
   plannedFoodCost: number; // planned food ordering (later from NRW Stock Planner)
 }
 
+/** cities/{cityId}/meterReadings/{YYYY-MM} — meant to be entered on the 1st of each month */
+export interface MeterReading {
+  electricityKwh: number;
+  waterM3: number;
+  readAt: string; // YYYY-MM-DD
+  enteredBy: string; // uid
+  enteredByName: string;
+}
+
 /** cities/{cityId}/config/general */
 export interface CityConfig {
   approvalLimit: number;

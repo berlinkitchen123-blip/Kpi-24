@@ -1,4 +1,4 @@
-import type { Budget, City, CityConfig, Expense, NewExpense, Revenue, SyncState, Task } from "@/types";
+import type { Budget, City, CityConfig, Expense, MeterReading, NewExpense, Revenue, SyncState, Task } from "@/types";
 
 export type Unsubscribe = () => void;
 
@@ -34,6 +34,9 @@ export interface DataSource {
   setBudget(cityId: string, month: string, b: Budget): Promise<void>;
   subscribeRevenue(cityId: string, months: string[], cb: (r: Record<string, Revenue>) => void): Unsubscribe;
   setRevenue(cityId: string, month: string, r: Revenue): Promise<void>;
+
+  subscribeMeterReadings(cityId: string, months: string[], cb: (r: Record<string, MeterReading>) => void): Unsubscribe;
+  setMeterReading(cityId: string, month: string, r: MeterReading): Promise<void>;
 
   subscribeConfig(cityId: string, cb: (c: CityConfig) => void): Unsubscribe;
   setConfig(cityId: string, c: CityConfig): Promise<void>;

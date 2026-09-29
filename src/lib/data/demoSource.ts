@@ -1,4 +1,4 @@
-import type { Budget, City, CityConfig, Expense, Revenue, SyncState, Task } from "@/types";
+import type { Budget, City, CityConfig, Expense, MeterReading, Revenue, SyncState, Task } from "@/types";
 import { DEFAULT_CONFIG, type DataSource } from "./types";
 
 // In-memory sample data for the preview. Nothing is persisted; reload resets it.
@@ -39,6 +39,7 @@ const between = (a: number, b: number) => Math.round((a + rnd() * (b - a)) * 100
 const expenses: Expense[] = [];
 const budgets: Record<string, Budget> = {};
 const revenue: Record<string, Revenue> = {};
+const meterReadings: Record<string, MeterReading> = {};
 let idc = 0;
 
 function add(date: string, amount: number, category: Expense["category"], subcategory: string, supplier: string, pm: Expense["paymentMethod"], opts: Partial<Expense> = {}) {
@@ -161,6 +162,13 @@ export const demoSource: DataSource = {
     sub(() => cb(cityId === "essen" ? Object.fromEntries(months.filter((m) => revenue[m]).map((m) => [m, { ...revenue[m] }])) : {})),
   async setRevenue(_c, m, r) {
     revenue[m] = { ...r };
+    emit();
+  },
+
+  subscribeMeterReadings: (cityId, months, cb) =>
+    sub(() => cb(cityId === "essen" ? Object.fromEntries(months.filter((m) => meterReadings[m]).map((m) => [m, { ...meterReadings[m] }])) : {})),
+  async setMeterReading(_c, m, r) {
+    meterReadings[m] = { ...r };
     emit();
   },
 

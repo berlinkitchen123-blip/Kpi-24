@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { data } from "@/lib/data";
 import { DEFAULT_CONFIG } from "@/lib/data/types";
 import { computeKpi, lastMonths, monthRange } from "@/lib/kpi";
-import type { Budget, CityConfig, Expense, KpiSnapshot, Revenue, SyncState, Task } from "@/types";
+import type { Budget, CityConfig, Expense, KpiSnapshot, MeterReading, Revenue, SyncState, Task } from "@/types";
 import { useAuth } from "./useAuth";
 
 export function useTasks(cityId: string | null) {
@@ -52,6 +52,17 @@ export function useRevenue(months: string[]) {
   useEffect(() => {
     if (!cityId) return;
     return data.subscribeRevenue(cityId, key.split(","), setR);
+  }, [cityId, key]);
+  return r;
+}
+
+export function useMeterReadings(months: string[]) {
+  const { cityId } = useAuth();
+  const key = months.join(",");
+  const [r, setR] = useState<Record<string, MeterReading> | null>(null);
+  useEffect(() => {
+    if (!cityId) return;
+    return data.subscribeMeterReadings(cityId, key.split(","), setR);
   }, [cityId, key]);
   return r;
 }

@@ -4,7 +4,7 @@ import {
 } from "firebase/firestore";
 import { fb } from "@/lib/firebase/config";
 import { blobToDataUrl } from "@/lib/image";
-import type { Budget, City, Expense, Revenue, Task } from "@/types";
+import type { Budget, City, Expense, MeterReading, Revenue, Task } from "@/types";
 import { DEFAULT_CONFIG, type DataSource } from "./types";
 
 const iso = (v: unknown): string | null =>
@@ -98,6 +98,13 @@ export const firebaseSource: DataSource = {
   },
   async setRevenue(cityId, month, r) {
     await setDoc(doc(fb().db, "cities", cityId, "revenue", month), r);
+  },
+
+  subscribeMeterReadings(cityId, months, cb) {
+    return subscribeDocs<MeterReading>(months.map((m) => [m, `cities/${cityId}/meterReadings/${m}`]), cb);
+  },
+  async setMeterReading(cityId, month, r) {
+    await setDoc(doc(fb().db, "cities", cityId, "meterReadings", month), r);
   },
 
   subscribeConfig(cityId, cb) {

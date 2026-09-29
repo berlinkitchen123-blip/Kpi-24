@@ -12,6 +12,7 @@ import { Suppliers } from "@/features/expenses/Suppliers";
 import { Budgets } from "@/features/budgets/Budgets";
 import { Kpis } from "@/features/kpi/Kpis";
 import { Approvals } from "@/features/approvals/Approvals";
+import { Utilities } from "@/features/utilities/Utilities";
 import { ToastProvider } from "@/components/overlay";
 import type { ReactElement } from "react";
 
@@ -23,6 +24,7 @@ const SCREENS: Record<string, ReactElement> = {
   "/budgets": <Budgets />,
   "/kpis": <Kpis />,
   "/approvals": <Approvals />,
+  "/utilities": <Utilities />,
 };
 
 // Single-file preview has no server routing, so it uses hash URLs.
