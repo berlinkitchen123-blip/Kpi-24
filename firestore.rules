@@ -1,0 +1,100 @@
+rules_version = '2';
+
+// Roles live in the auth token as custom claims: { roles: { essen: "manager", ... } }
+// Set only by the setUserRole Cloud Function (or the bootstrap script).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function roleIn(cityId) {
+      return signedIn() && request.auth.token.roles is map && cityId in request.auth.token.roles
+        ? request.auth.token.roles[cityId] : null;
+    }
+    function isManager(cityId)    { return roleIn(cityId) == "manager"; }
+    function isStaff(cityId)      { return roleIn(cityId) == "staff"; }
+    function canRead(cityId)      { return roleIn(cityId) in ["manager", "management"]; }
+    function approvalLimit(cityId) {
+      let cfg = /databases/$(database)/documents/cities/$(cityId)/config/general;
+      return exists(cfg) ? get(cfg).data.approvalLimit : 200;
+    }
+    function monthLocked(cityId, date) {
+      return exists(/databases/$(database)/documents/cities/$(cityId)/locks/$(date[0:7]));
+    }
+
+    match /cities/{cityId} {
+      allow read: if roleIn(cityId) != null;
+      allow write: if false; // cities are created by admin script only
+
+      // Expenses: staff can add and see only their own, pending entries.
+      match /expenses/{id} {
+        allow read: if canRead(cityId)
+          || (isStaff(cityId) && resource.data.enteredBy == request.auth.uid);
+        allow create: if (isManager(cityId) || isStaff(cityId))
+          && request.resource.data.enteredBy == request.auth.uid
+          && request.resource.data.cityId == cityId
+          && request.resource.data.amount is number
+          && request.resource.data.date is string
+          // Staff: above the approval limit the entry must start as "pending".
+          && (isManager(cityId) || request.resource.data.status == "pending"
+              || (request.resource.data.status == "approved" && request.resource.data.amount <= approvalLimit(cityId)))
+          && !monthLocked(cityId, request.resource.data.date);
+        allow update, delete: if isManager(cityId) && !monthLocked(cityId, resource.data.date);
+      }
+
+      // Fuel: staff/drivers can log fill-ups; same pattern as expenses.
+      match /fuel/{id} {
+        allow read: if canRead(cityId)
+          || (isStaff(cityId) && resource.data.enteredBy == request.auth.uid);
+        allow create: if (isManager(cityId) || isStaff(cityId))
+          && request.resource.data.enteredBy == request.auth.uid
+          && !monthLocked(cityId, request.resource.data.date);
+        allow update, delete: if isManager(cityId) && !monthLocked(cityId, resource.data.date);
+      }
+
+      match /vehicles/{id} {
+        allow read: if roleIn(cityId) != null; // drivers need to pick a vehicle
+        allow write: if isManager(cityId);
+      }
+
+      // To-do list is the City Manager's own.
+      match /tasks/{id} {
+        allow read, write: if isManager(cityId);
+      }
+
+      // KPI snapshots are written by Cloud Functions (admin SDK bypasses rules).
+      match /kpi/{month} {
+        allow read: if canRead(cityId);
+        allow write: if false;
+      }
+
+      // Approval limit etc. — everyone in the city needs to read it.
+      match /config/{doc} {
+        allow read: if roleIn(cityId) != null;
+        allow write: if isManager(cityId);
+      }
+
+      match /locks/{month} {
+        allow read: if roleIn(cityId) != null;
+        allow write: if false; // month-close function only
+      }
+
+      // budgets, revenue, suppliers, recurring, audit, ...
+      // Rules are OR-ed across matches, so collections handled above are excluded here.
+      match /{coll}/{doc=**} {
+        allow read: if canRead(cityId) && !(coll in ["expenses", "fuel", "tasks"]);
+        allow write: if isManager(cityId)
+          && !(coll in ["expenses", "fuel", "vehicles", "tasks", "kpi", "locks", "audit", "config"]);
+      }
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false; // managed by setUserRole
+    }
+
+    match /system/{doc} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

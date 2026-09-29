@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-preview
+.env.local
+.env*.local
+# NEVER commit service account keys
+*service-account*.json
+serviceAccountKey.json
+functions/lib
+functions/node_modules
+.firebase
+*.tsbuildinfo

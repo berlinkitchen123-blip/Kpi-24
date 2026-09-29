@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Receipts: cities/{cityId}/receipts/{uid}/{file}
+service firebase.storage {
+  match /b/{bucket}/o {
+    function roleIn(cityId) {
+      return request.auth != null && request.auth.token.roles is map && cityId in request.auth.token.roles
+        ? request.auth.token.roles[cityId] : null;
+    }
+
+    match /cities/{cityId}/receipts/{uid}/{file} {
+      allow read: if roleIn(cityId) in ["manager", "management"]
+        || (roleIn(cityId) == "staff" && request.auth.uid == uid);
+      allow create: if roleIn(cityId) in ["manager", "staff"]
+        && request.auth.uid == uid
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|application/pdf');
+      allow delete: if roleIn(cityId) == "manager";
+    }
+
+    match /{all=**} {
+      allow read, write: if false;
+    }
+  }
+}
