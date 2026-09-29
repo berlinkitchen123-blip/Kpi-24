@@ -2,7 +2,7 @@ name: Deploy
 
 # Push to main -> build web app + functions -> deploy hosting, rules, functions.
 # Needs one GitHub secret (Settings -> Secrets and variables -> Actions):
-#   __SA_SECRET__  = JSON of the Firebase service account key (never commit it)
+#   FIREBASE_SERVICE_ACCOUNT  = JSON of the Firebase service account key (never commit it)
 on:
   push:
     branches: [main]
@@ -37,7 +37,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.__SA_SECRET__ }}
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
         run: npx --yes firebase-tools@latest deploy --project "kpi-24" --only hosting,firestore,storage,functions --non-interactive --force
