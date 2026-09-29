@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut as fbSignOut,
+  GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signInWithPopup,
+  signOut as fbSignOut,
 } from "firebase/auth";
 import { fb, isDemo } from "@/lib/firebase/config";
 import { data } from "@/lib/data";
@@ -33,21 +34,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cities, setCities] = useState<City[]>([]);
   const [cityId, setCityId] = useState<string | null>(null);
 
-  // Firebase: roles come from custom claims { roles: { essen: "manager" } } set by the setUserRole function.
+  // No login screen: every visitor is auto-signed-in anonymously and treated as
+  // City Manager of "essen". Single-user setup by request — see firestore.rules,
+  // which grants manager access to any signed-in (incl. anonymous) user.
   useEffect(() => {
     if (isDemo) return;
     const { auth } = fb();
-    return onAuthStateChanged(auth, async (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) {
-        setUser(null);
-        setLoading(false);
-        return;
+        await signInAnonymously(auth);
+        return; // onAuthStateChanged fires again once the anonymous user is set.
       }
       const token = await u.getIdTokenResult(true);
-      const roles = (token.claims.roles ?? {}) as CityRoles;
-      setUser({ uid: u.uid, name: u.displayName ?? u.email ?? "User", email: u.email ?? "", roles });
+      const claimRoles = (token.claims.roles ?? {}) as CityRoles;
+      const roles: CityRoles = { essen: "manager", ...claimRoles };
+      setUser({ uid: u.uid, name: u.displayName ?? u.email ?? "Harsh", email: u.email ?? "", roles });
       setLoading(false);
     });
+    return unsub;
   }, []);
 
   // Load the cities this user has a role in, pick the first one.

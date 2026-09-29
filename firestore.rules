@@ -1,14 +1,18 @@
 rules_version = '2';
 
-// Roles live in the auth token as custom claims: { roles: { essen: "manager", ... } }
-// Set only by the setUserRole Cloud Function (or the bootstrap script).
+// No login screen (single-user setup, by request): anyone who opens the app is
+// auto-signed-in anonymously and treated as manager of "essen". Roles from
+// custom claims (set by the bootstrap script) still take priority if present.
+// NOTE: this means anyone with the app URL has full manager access to "essen" —
+// there is no password or identity check in front of Firestore anymore.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
     function roleIn(cityId) {
       return signedIn() && request.auth.token.roles is map && cityId in request.auth.token.roles
-        ? request.auth.token.roles[cityId] : null;
+        ? request.auth.token.roles[cityId]
+        : (signedIn() && cityId == "essen" ? "manager" : null);
     }
     function isManager(cityId)    { return roleIn(cityId) == "manager"; }
     function isStaff(cityId)      { return roleIn(cityId) == "staff"; }
