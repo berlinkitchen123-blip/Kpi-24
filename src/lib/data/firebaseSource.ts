@@ -2,8 +2,8 @@ import {
   addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where,
   type QueryConstraint, type Timestamp,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { fb } from "@/lib/firebase/config";
+import { blobToDataUrl } from "@/lib/image";
 import type { Budget, City, Expense, Revenue, Task } from "@/types";
 import { DEFAULT_CONFIG, type DataSource } from "./types";
 
@@ -81,10 +81,10 @@ export const firebaseSource: DataSource = {
   async deleteExpense(cityId, id) {
     await deleteDoc(doc(fb().db, "cities", cityId, "expenses", id));
   },
-  async uploadReceipt(cityId, uid, file, name) {
-    const r = ref(fb().storage, `cities/${cityId}/receipts/${uid}/${Date.now()}-${name}`);
-    await uploadBytes(r, file, { contentType: file.type });
-    return getDownloadURL(r);
+  /** No Firebase Storage bucket in this project: receipts are stored inline as a
+   * compressed base64 data URL (see compressReceipt in lib/image.ts). */
+  async uploadReceipt(_cityId, _uid, file, _name) {
+    return blobToDataUrl(file);
   },
 
   subscribeBudgets(cityId, months, cb) {

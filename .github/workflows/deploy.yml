@@ -40,4 +40,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
-        run: npx --yes firebase-tools@latest deploy --project "kpi-24" --only hosting,firestore,storage,functions --non-interactive --force
+        run: npx --yes firebase-tools@latest deploy --project "kpi-24" --only hosting,firestore,functions --non-interactive --force

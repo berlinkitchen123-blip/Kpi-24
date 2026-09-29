@@ -6,6 +6,7 @@ dist-preview
 # NEVER commit service account keys
 *service-account*.json
 serviceAccountKey.json
+*firebase-adminsdk*.json
 functions/lib
 functions/node_modules
 .firebase
