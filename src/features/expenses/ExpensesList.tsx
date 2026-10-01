@@ -7,8 +7,9 @@ import { MonthPicker } from "@/components/MonthPicker";
 import { useAuth, usePermissions } from "@/hooks/useAuth";
 import { useExpenses } from "@/hooks/useLive";
 import { data } from "@/lib/data";
-import { cn, currentMonth, dateDE, fmtDate, fmtEur, numDE } from "@/lib/format";
-import { netOf, parseExpenseNote } from "@/lib/expenseNotes";
+import { cn, currentMonth, fmtDate, fmtEur } from "@/lib/format";
+import { netOf } from "@/lib/expenseNotes";
+import { expensesToGermanCsv } from "@/lib/expenseCsv";
 import { monthRange } from "@/lib/kpi";
 import { EXPENSE_CATEGORIES, type Expense } from "@/types";
 import { catLabel, ExpenseForm, vehicleLabel } from "./ExpenseForm";
@@ -93,32 +94,7 @@ export function ExpensesList() {
   const suppliers = useMemo(() => [...new Set((all ?? []).map((e) => e.supplier))].sort(), [all]);
 
   const exportCsv = () => {
-    const head = ["Datum", "Lieferant", "Kategorie", "Typ", "Produkt", "Menge", "Netto", "MwSt-Satz", "MwSt-Betrag", "Brutto", "Bezahlt mit", "Status", "Bestellreferenz", "Beleg", "Notiz"];
-    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const lines = rows.map((e) => {
-      const net = netOf(e.amount, e.vatRate);
-      const parsed = parseExpenseNote(e.note);
-      return [
-        dateDE(e.date),
-        esc(e.supplier),
-        esc(catLabel(e.category)),
-        esc(e.subcategory),
-        esc(parsed?.productName ?? ""),
-        parsed ? String(parsed.qty) : "",
-        numDE(net),
-        `${e.vatRate}%`,
-        numDE(e.amount - net),
-        numDE(e.amount),
-        e.paymentMethod,
-        e.status,
-        esc(parsed?.orderRef ?? ""),
-        e.receiptUrl ? "ja" : "nein",
-        esc(e.note || ""),
-      ].join(";");
-    });
-    const t = sums(rows);
-    const sumRow = ["", "", "", "", "", "SUMME", numDE(t.net), "", numDE(t.vat), numDE(t.gross), "", "", "", "", ""].join(";");
-    const csv = [head.join(";"), ...lines, sumRow].join("\r\n");
+    const csv = expensesToGermanCsv(rows, catLabel);
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

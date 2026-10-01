@@ -11,3 +11,4 @@ functions/lib
 functions/node_modules
 .firebase
 *.tsbuildinfo
+.gstack/
