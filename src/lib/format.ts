@@ -8,6 +8,11 @@ const eur0 = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR"
 export const fmtEur = (n: number, whole = false) => (whole ? eur0 : eur).format(n);
 export const fmtPct = (n: number) => `${n.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
 
+/** Plain German decimal, comma separator, no thousands grouping — for CSV cells Excel should sum. */
+export const numDE = (n: number) => n.toFixed(2).replace(".", ",");
+/** YYYY-MM-DD -> DD.MM.YYYY, for CSV cells opened in German Excel. */
+export const dateDE = (d: string) => d.split("-").reverse().join(".");
+
 // Local dates (not UTC) so late-evening entries land on the right day.
 const p2 = (n: number) => String(n).padStart(2, "0");
 export const todayIso = () => {

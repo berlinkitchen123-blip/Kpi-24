@@ -9,6 +9,7 @@ import { Settings } from "@/features/settings/Settings";
 import { QuickAdd } from "@/features/expenses/QuickAdd";
 import { ExpensesList } from "@/features/expenses/ExpensesList";
 import { Suppliers } from "@/features/expenses/Suppliers";
+import { SupplierInsights } from "@/features/expenses/SupplierInsights";
 import { Budgets } from "@/features/budgets/Budgets";
 import { Kpis } from "@/features/kpi/Kpis";
 import { Approvals } from "@/features/approvals/Approvals";
@@ -44,6 +45,7 @@ function Gate() {
         {allowed
           .filter((n) => n.path !== "/")
           .map((n) => <Route key={n.path} path={n.path.slice(1)} element={SCREENS[n.path] ?? <Placeholder />} />)}
+        {allowed.some((n) => n.path === "/suppliers") && <Route path="suppliers/insights" element={<SupplierInsights />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

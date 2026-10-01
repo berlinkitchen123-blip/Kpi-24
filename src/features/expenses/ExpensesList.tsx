@@ -7,7 +7,8 @@ import { MonthPicker } from "@/components/MonthPicker";
 import { useAuth, usePermissions } from "@/hooks/useAuth";
 import { useExpenses } from "@/hooks/useLive";
 import { data } from "@/lib/data";
-import { cn, currentMonth, fmtDate, fmtEur } from "@/lib/format";
+import { cn, currentMonth, dateDE, fmtDate, fmtEur, numDE } from "@/lib/format";
+import { netOf, parseExpenseNote } from "@/lib/expenseNotes";
 import { monthRange } from "@/lib/kpi";
 import { EXPENSE_CATEGORIES, type Expense } from "@/types";
 import { catLabel, ExpenseForm, vehicleLabel } from "./ExpenseForm";
@@ -18,6 +19,9 @@ export function ExpensesList() {
   const [params, setParams] = useSearchParams();
   const month = params.get("month") ?? currentMonth();
   const category = params.get("category") ?? "";
+  const type = params.get("type") ?? "";
+  const vat = params.get("vat") ?? "";
+  const supplier = params.get("supplier") ?? "";
   const q = params.get("q") ?? "";
   const missing = params.get("missing") === "1";
   const pending = params.get("pending") === "1";
@@ -34,36 +38,91 @@ export function ExpensesList() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "date", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
+  // Suppliers in this month, sorted by brutto spend desc, with line counts — for the filter dropdown.
+  const supplierOptions = useMemo(() => {
+    const m = new Map<string, { total: number; count: number }>();
+    for (const e of all ?? []) {
+      const s = m.get(e.supplier) ?? { total: 0, count: 0 };
+      s.total += e.amount;
+      s.count += 1;
+      m.set(e.supplier, s);
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [all]);
+
+  const typeDisabled = !!category && category !== "nonfood";
+  const typeOptions = useMemo(() => EXPENSE_CATEGORIES.find((c) => c.id === "nonfood")!.subs, []);
+
+  const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const r = (all ?? []).filter(
+    return (all ?? []).filter(
       (e) =>
         (!category || e.category === category) &&
+        (!type || e.subcategory === type) &&
+        (!vat || String(e.vatRate) === vat) &&
+        (!supplier || e.supplier === supplier) &&
         (!missing || !e.receiptUrl) &&
         (!pending || e.status === "pending") &&
         (!needle || `${e.supplier} ${e.note} ${e.subcategory} ${e.enteredByName}`.toLowerCase().includes(needle)),
     );
-    const k = sort.key;
-    return r.sort((a, b) => (k === "amount" ? a.amount - b.amount : a[k].localeCompare(b[k])) * sort.dir);
-  }, [all, category, missing, pending, q, sort]);
+  }, [all, category, type, vat, supplier, missing, pending, q]);
 
-  const total = rows.reduce((s, e) => s + e.amount, 0);
+  const rows = useMemo(() => {
+    const k = sort.key;
+    return [...filtered].sort((a, b) => (k === "amount" ? a.amount - b.amount : a[k].localeCompare(b[k])) * sort.dir);
+  }, [filtered, sort]);
+
+  const anyFilterActive = !!(category || type || vat || supplier || missing || pending || q);
+  const sums = (list: Expense[]) =>
+    list.reduce(
+      (s, e) => {
+        const net = netOf(e.amount, e.vatRate);
+        s.net += net;
+        s.gross += e.amount;
+        s.vat += e.amount - net;
+        return s;
+      },
+      { net: 0, vat: 0, gross: 0 },
+    );
+  const totals = sums(rows);
+  const unfilteredTotals = sums(all ?? []);
+
   const missingCount = (all ?? []).filter((e) => !e.receiptUrl).length;
   const pendingCount = (all ?? []).filter((e) => e.status === "pending").length;
   const open = (all ?? []).find((e) => e.id === openId) ?? null;
   const suppliers = useMemo(() => [...new Set((all ?? []).map((e) => e.supplier))].sort(), [all]);
 
   const exportCsv = () => {
-    const head = ["date", "amount", "vat", "category", "type", "supplier", "payment", "vehicle", "status", "receipt", "entered_by", "note"];
-    const lines = rows.map((e) =>
-      [e.date, e.amount.toFixed(2), e.vatRate, catLabel(e.category), e.subcategory, e.supplier, e.paymentMethod, vehicleLabel(e.vehicleId), e.status, e.receiptUrl ? "yes" : "no", e.enteredByName, e.note]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(";"),
-    );
-    const blob = new Blob(["﻿" + [head.join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const head = ["Datum", "Lieferant", "Kategorie", "Typ", "Produkt", "Menge", "Netto", "MwSt-Satz", "MwSt-Betrag", "Brutto", "Bezahlt mit", "Status", "Bestellreferenz", "Beleg", "Notiz"];
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const lines = rows.map((e) => {
+      const net = netOf(e.amount, e.vatRate);
+      const parsed = parseExpenseNote(e.note);
+      return [
+        dateDE(e.date),
+        esc(e.supplier),
+        esc(catLabel(e.category)),
+        esc(e.subcategory),
+        esc(parsed?.productName ?? ""),
+        parsed ? String(parsed.qty) : "",
+        numDE(net),
+        `${e.vatRate}%`,
+        numDE(e.amount - net),
+        numDE(e.amount),
+        e.paymentMethod,
+        e.status,
+        esc(parsed?.orderRef ?? ""),
+        e.receiptUrl ? "ja" : "nein",
+        esc(e.note || ""),
+      ].join(";");
+    });
+    const t = sums(rows);
+    const sumRow = ["", "", "", "", "", "SUMME", numDE(t.net), "", numDE(t.vat), numDE(t.gross), "", "", "", "", ""].join(";");
+    const csv = [head.join(";"), ...lines, sumRow].join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `expenses-${month}.csv`;
+    a.download = `ausgaben_remscheid_${month}${anyFilterActive ? "_gefiltert" : ""}.csv`;
     a.click();
   };
 
@@ -84,9 +143,23 @@ export function ExpensesList() {
 
       <Card className="flex flex-wrap items-center gap-2 p-3">
         <MonthPicker value={month} onChange={(m) => set("month", m === currentMonth() ? "" : m)} />
-        <select value={category} onChange={(e) => set("category", e.target.value)} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="Category filter">
+        <select value={category} onChange={(e) => { set("category", e.target.value); if (e.target.value !== "nonfood") set("type", ""); }} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="Category filter">
           <option value="">All categories</option>
           {EXPENSE_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <select value={type} disabled={typeDisabled} onChange={(e) => set("type", e.target.value)} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm disabled:opacity-40" aria-label="Type filter">
+          <option value="">All types</option>
+          {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={vat} onChange={(e) => set("vat", e.target.value)} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="VAT filter">
+          <option value="">All VAT rates</option>
+          <option value="19">19 %</option>
+          <option value="7">7 %</option>
+          <option value="0">0 %</option>
+        </select>
+        <select value={supplier} onChange={(e) => set("supplier", e.target.value)} className="h-9 max-w-56 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="Supplier filter">
+          <option value="">All suppliers</option>
+          {supplierOptions.map(([s, info]) => <option key={s} value={s}>{s} ({info.count})</option>)}
         </select>
         <div className="relative min-w-40 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -100,10 +173,17 @@ export function ExpensesList() {
         </Toggle>
       </Card>
 
-      <div className="flex items-baseline justify-between px-1 text-sm">
+      <Card className="flex flex-wrap items-baseline gap-x-5 gap-y-1 px-4 py-2.5 text-sm">
         <span className="text-muted">{all === null ? "Loading…" : `${rows.length} entries`}</span>
-        <span className="tabular font-semibold">{fmtEur(total)}</span>
-      </div>
+        <span className="ml-auto flex flex-wrap items-baseline gap-x-5">
+          <span className="text-muted">Netto <span className="tabular font-medium text-ink">{fmtEur(totals.net)}</span></span>
+          <span className="text-muted">VAT <span className="tabular font-medium text-ink">{fmtEur(totals.vat)}</span></span>
+          <span className="text-muted">Brutto <span className="tabular font-semibold text-ink">{fmtEur(totals.gross)}</span></span>
+        </span>
+        {anyFilterActive && all !== null && (
+          <span className="w-full text-xs text-muted">filtered from {all.length} entries · Brutto {fmtEur(unfilteredTotals.gross)}</span>
+        )}
+      </Card>
 
       {all !== null && rows.length === 0 ? (
         <Card className="p-10 text-center text-sm text-muted">No expenses match these filters.</Card>
@@ -115,28 +195,35 @@ export function ExpensesList() {
               <tr>
                 <th className="px-4 py-2.5">{sortBtn("date", "Date")}</th>
                 <th className="px-2 py-2.5">{sortBtn("supplier", "Supplier")}</th>
-                <th className="px-2 py-2.5 font-medium">Category</th>
-                <th className="px-2 py-2.5 font-medium">Paid</th>
-                <th className="px-2 py-2.5 font-medium">By</th>
-                <th className="px-2 py-2.5"></th>
-                <th className="px-4 py-2.5 text-right">{sortBtn("amount", "Amount", true)}</th>
+                <th className="px-2 py-2.5 font-medium">Category · Type</th>
+                <th className="hidden px-2 py-2.5 text-right font-medium lg:table-cell">VAT</th>
+                <th className="hidden px-2 py-2.5 text-right font-medium lg:table-cell">Netto</th>
+                <th className="px-4 py-2.5 text-right">{sortBtn("amount", "Brutto", true)}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {rows.map((e) => (
-                <tr key={e.id} onClick={() => setOpenId(e.id)} className="cursor-pointer hover:bg-slate-50">
-                  <td className="tabular whitespace-nowrap px-4 py-2.5">{fmtDate(e.date)}</td>
-                  <td className="px-2 py-2.5">
-                    <div className="font-medium">{e.supplier}</div>
-                    {e.note && <div className="max-w-64 truncate text-xs text-muted">{e.note}</div>}
-                  </td>
-                  <td className="px-2 py-2.5">{catLabel(e.category)} <span className="text-xs text-muted">· {e.subcategory}{e.vehicleId ? ` · ${vehicleLabel(e.vehicleId)}` : ""}</span></td>
-                  <td className="px-2 py-2.5 capitalize text-muted">{e.paymentMethod}</td>
-                  <td className="px-2 py-2.5 text-muted">{e.enteredByName}</td>
-                  <td className="px-2 py-2.5"><Flags e={e} /></td>
-                  <td className="tabular px-4 py-2.5 text-right font-medium">{fmtEur(e.amount)}</td>
-                </tr>
-              ))}
+              {rows.map((e) => {
+                const net = netOf(e.amount, e.vatRate);
+                return (
+                  <tr key={e.id} onClick={() => setOpenId(e.id)} className="cursor-pointer hover:bg-slate-50">
+                    <td className="tabular whitespace-nowrap px-4 py-2.5 align-top">{fmtDate(e.date)}</td>
+                    <td className="px-2 py-2.5 align-top">
+                      <div className="font-medium">{e.supplier}</div>
+                      {e.note && <div className="max-w-64 truncate text-xs text-muted">{e.note}</div>}
+                    </td>
+                    <td className="px-2 py-2.5 align-top">
+                      {catLabel(e.category)} <span className="text-xs text-muted">· {e.subcategory}{e.vehicleId ? ` · ${vehicleLabel(e.vehicleId)}` : ""}</span>
+                      <div className="mt-0.5"><Flags e={e} /></div>
+                    </td>
+                    <td className="tabular hidden px-2 py-2.5 text-right align-top text-muted lg:table-cell">{e.vatRate} %</td>
+                    <td className="tabular hidden px-2 py-2.5 text-right align-top text-muted lg:table-cell">{fmtEur(net)}</td>
+                    <td className="px-4 py-2.5 text-right align-top">
+                      <div className="tabular font-medium">{fmtEur(e.amount)}</div>
+                      <div className="tabular text-xs text-muted lg:hidden">Netto {fmtEur(net)}</div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {/* Phone list */}
@@ -149,7 +236,10 @@ export function ExpensesList() {
                     <div className="text-xs text-muted">{fmtDate(e.date)} · {catLabel(e.category)}{e.vehicleId ? ` · ${vehicleLabel(e.vehicleId)}` : ""}</div>
                   </div>
                   <Flags e={e} />
-                  <span className="tabular text-sm font-semibold">{fmtEur(e.amount)}</span>
+                  <div className="text-right">
+                    <div className="tabular text-sm font-semibold">{fmtEur(e.amount)}</div>
+                    <div className="tabular text-[11px] text-muted">Netto {fmtEur(netOf(e.amount, e.vatRate))}</div>
+                  </div>
                 </button>
               </li>
             ))}
@@ -212,7 +302,8 @@ function ExpenseDrawer({ expense: e, canEdit, suppliers, onClose }: { expense: E
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Item k="Category" v={`${catLabel(e.category)} · ${e.subcategory}`} />
-            <Item k="VAT" v={`${e.vatRate} % (${fmtEur(e.amount - e.amount / (1 + e.vatRate / 100))})`} />
+            <Item k="VAT" v={`${e.vatRate} % (${fmtEur(e.amount - netOf(e.amount, e.vatRate))})`} />
+            <Item k="Netto" v={fmtEur(netOf(e.amount, e.vatRate))} />
             <Item k="Paid by" v={e.paymentMethod} />
             <Item k="Vehicle" v={vehicleLabel(e.vehicleId) || "–"} />
             <Item k="Entered by" v={e.enteredByName} />

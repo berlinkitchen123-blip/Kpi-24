@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { TrendingDown, TrendingUp } from "lucide-react";
-import { Card } from "@/components/ui";
+import { Link, useNavigate } from "react-router-dom";
+import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
+import { Button, Card } from "@/components/ui";
 import { Segmented } from "@/components/overlay";
 import { useExpenses } from "@/hooks/useLive";
 import { cn, currentMonth, fmtDate, fmtEur } from "@/lib/format";
@@ -46,6 +46,7 @@ export function Suppliers() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-xl font-semibold">Suppliers</h1>
+        <Link to="/suppliers/insights"><Button size="sm" variant="outline"><BarChart3 className="h-3.5 w-3.5" /> Insights</Button></Link>
         <Segmented label="Period" value={span} onChange={setSpan} options={[{ value: 1, label: "This month" }, { value: 3, label: "3 months" }, { value: 6, label: "6 months" }]} />
       </div>
       <Card className="overflow-hidden">
