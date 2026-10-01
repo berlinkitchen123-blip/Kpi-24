@@ -23,7 +23,11 @@ export default defineConfig(({ mode }) => ({
             start_url: "/",
             icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
           },
-          workbox: { navigateFallback: "/index.html" },
+          // `clientsClaim`+`skipWaiting` make a new deploy take over already-open
+          // tabs immediately instead of waiting for every tab to be closed first;
+          // `cleanupOutdatedCaches` drops precached entries (old chunk hashes)
+          // from previous deploys so they can't be served stale.
+          workbox: { navigateFallback: "/index.html", clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true },
         }),
   ],
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
