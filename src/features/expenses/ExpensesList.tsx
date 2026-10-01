@@ -5,7 +5,7 @@ import { Badge, Button, Card, Input } from "@/components/ui";
 import { Drawer, useToast } from "@/components/overlay";
 import { MonthPicker } from "@/components/MonthPicker";
 import { useAuth, usePermissions } from "@/hooks/useAuth";
-import { useExpenses } from "@/hooks/useLive";
+import { useAllExpenses } from "@/hooks/useLive";
 import { data } from "@/lib/data";
 import { cn, currentMonth, fmtDate, fmtEur } from "@/lib/format";
 import { netOf } from "@/lib/expenseNotes";
@@ -34,7 +34,14 @@ export function ExpensesList() {
   };
 
   const { from, to } = monthRange(month);
-  const all = useExpenses(from, to);
+  // One stable live subscription for the whole history (see useAllExpenses);
+  // the month is then just a client-side filter, same as category/supplier/etc.,
+  // so switching months is instant instead of re-opening a Firestore listener.
+  const everything = useAllExpenses();
+  const all = useMemo(
+    () => (everything === null ? null : everything.filter((e) => e.date >= from && e.date <= to)),
+    [everything, from, to],
+  );
   const { isManager } = usePermissions();
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "date", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);

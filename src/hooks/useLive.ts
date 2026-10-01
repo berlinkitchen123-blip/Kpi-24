@@ -34,6 +34,30 @@ export function useExpenses(from: string, to: string) {
   return e;
 }
 
+// Deliberately wide and constant for the life of the tab: every subscribeExpenses
+// call opens a brand-new Firestore realtime stream, and each new stream pays a
+// network round trip to the server even when the data is already cached locally
+// (persistentLocalCache in lib/firebase/config.ts). Keeping this range fixed means
+// one listener is opened per visit to the Expenses screen; switching months there
+// is then a pure client-side filter over already-synced data, not a resubscribe.
+const ALL_EXPENSES_FROM = "2000-01-01";
+const ALL_EXPENSES_TO = "2100-12-31";
+
+/** All expenses ever recorded (one stable live listener), for screens that let
+ * the user flip between months/filters and want that to be instant. Staff
+ * automatically get only their own. */
+export function useAllExpenses() {
+  const { cityId, role, user } = useAuth();
+  const onlyUid = role === "staff" ? user?.uid : undefined;
+  const [e, setE] = useState<Expense[] | null>(null);
+  useEffect(() => {
+    if (!cityId) return;
+    setE(null);
+    return data.subscribeExpenses(cityId, { from: ALL_EXPENSES_FROM, to: ALL_EXPENSES_TO, onlyUid }, setE);
+  }, [cityId, onlyUid]);
+  return e;
+}
+
 export function useBudgets(months: string[]) {
   const { cityId } = useAuth();
   const key = months.join(",");
