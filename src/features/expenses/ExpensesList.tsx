@@ -14,7 +14,7 @@ import { monthRange } from "@/lib/kpi";
 import { EXPENSE_CATEGORIES, type Expense } from "@/types";
 import { catLabel, ExpenseForm, vehicleLabel } from "./ExpenseForm";
 
-type SortKey = "date" | "amount" | "supplier";
+type SortKey = "date" | "amount" | "supplier" | "category" | "vat" | "netto";
 
 export function ExpensesList() {
   const [params, setParams] = useSearchParams();
@@ -26,11 +26,27 @@ export function ExpensesList() {
   const q = params.get("q") ?? "";
   const missing = params.get("missing") === "1";
   const pending = params.get("pending") === "1";
-  const set = (k: string, v: string) => {
-    const p = new URLSearchParams(params);
-    if (v) p.set(k, v);
-    else p.delete(k);
-    setParams(p, { replace: true });
+  const set = (k: string, v: string) => setMany({ [k]: v });
+
+  // React Router's setSearchParams always builds the next URL from the
+  // searchParams captured in *this render's* closure — even the functional
+  // updater form — so two separate `set()` calls in the same handler (e.g.
+  // the category select setting both "category" and "type") each start from
+  // the same stale snapshot and the second call silently clobbers the first.
+  // Any handler that needs to change more than one param at once must go
+  // through a single setParams call, hence this batched helper.
+  const setMany = (patch: Record<string, string>) => {
+    setParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        for (const [k, v] of Object.entries(patch)) {
+          if (v) p.set(k, v);
+          else p.delete(k);
+        }
+        return p;
+      },
+      { replace: true },
+    );
   };
 
   const { from, to } = monthRange(month);
@@ -75,9 +91,27 @@ export function ExpensesList() {
     );
   }, [all, category, type, vat, supplier, missing, pending, q]);
 
+  const sortValue = (e: Expense, k: SortKey): number | string => {
+    switch (k) {
+      case "amount":
+        return e.amount;
+      case "vat":
+        return e.vatRate;
+      case "netto":
+        return netOf(e.amount, e.vatRate);
+      case "category":
+        return `${catLabel(e.category)} ${e.subcategory}`;
+      default:
+        return e[k];
+    }
+  };
   const rows = useMemo(() => {
-    const k = sort.key;
-    return [...filtered].sort((a, b) => (k === "amount" ? a.amount - b.amount : a[k].localeCompare(b[k])) * sort.dir);
+    return [...filtered].sort((a, b) => {
+      const av = sortValue(a, sort.key);
+      const bv = sortValue(b, sort.key);
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return cmp * sort.dir;
+    });
   }, [filtered, sort]);
 
   const anyFilterActive = !!(category || type || vat || supplier || missing || pending || q);
@@ -109,8 +143,14 @@ export function ExpensesList() {
     a.click();
   };
 
+  // Text columns default to ascending (A→Z) on first click; numeric columns
+  // default to descending (highest first), matching how Brutto already behaved.
+  const textSortKeys: SortKey[] = ["supplier", "category"];
   const sortBtn = (key: SortKey, label: string, right = false) => (
-    <button onClick={() => setSort((s) => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : key === "supplier" ? 1 : -1 }))} className={cn("inline-flex items-center gap-1 font-medium", right && "flex-row-reverse")}>
+    <button
+      onClick={() => setSort((s) => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : textSortKeys.includes(key) ? 1 : -1 }))}
+      className={cn("inline-flex items-center gap-1 font-medium", right && "flex-row-reverse")}
+    >
       {label}
       {sort.key === key && (sort.dir === 1 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
     </button>
@@ -126,7 +166,7 @@ export function ExpensesList() {
 
       <Card className="flex flex-wrap items-center gap-2 p-3">
         <MonthPicker value={month} onChange={(m) => set("month", m === currentMonth() ? "" : m)} />
-        <select value={category} onChange={(e) => { set("category", e.target.value); if (e.target.value !== "nonfood") set("type", ""); }} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="Category filter">
+        <select value={category} onChange={(e) => setMany({ category: e.target.value, ...(e.target.value !== "nonfood" ? { type: "" } : {}) })} className="h-9 rounded-lg border border-line bg-surface px-2 text-sm" aria-label="Category filter">
           <option value="">All categories</option>
           {EXPENSE_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
@@ -178,9 +218,9 @@ export function ExpensesList() {
               <tr>
                 <th className="px-4 py-2.5">{sortBtn("date", "Date")}</th>
                 <th className="px-2 py-2.5">{sortBtn("supplier", "Supplier")}</th>
-                <th className="px-2 py-2.5 font-medium">Category · Type</th>
-                <th className="hidden px-2 py-2.5 text-right font-medium lg:table-cell">VAT</th>
-                <th className="hidden px-2 py-2.5 text-right font-medium lg:table-cell">Netto</th>
+                <th className="px-2 py-2.5">{sortBtn("category", "Category · Type")}</th>
+                <th className="hidden px-2 py-2.5 text-right lg:table-cell">{sortBtn("vat", "VAT", true)}</th>
+                <th className="hidden px-2 py-2.5 text-right lg:table-cell">{sortBtn("netto", "Netto", true)}</th>
                 <th className="px-4 py-2.5 text-right">{sortBtn("amount", "Brutto", true)}</th>
               </tr>
             </thead>
