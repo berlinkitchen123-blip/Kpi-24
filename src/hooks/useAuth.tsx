@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signInWithPopup,
+  GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup,
   signOut as fbSignOut,
 } from "firebase/auth";
 import { fb, isDemo } from "@/lib/firebase/config";
@@ -15,7 +15,7 @@ export const DEMO_USERS: AppUser[] = [
 
 interface AuthCtx {
   user: AppUser | null;
-  loading: boolean;
+  loading: boolean
   cities: City[];
   cityId: string | null;
   role: Role | null;
@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { auth } = fb();
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) {
-        await signInAnonymously(auth);
-        return; // onAuthStateChanged fires again once the anonymous user is set.
+      setLoading(false);
+                return;
       }
       const token = await u.getIdTokenResult(true);
       const claimRoles = (token.claims.roles ?? {}) as CityRoles;
