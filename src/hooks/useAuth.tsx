@@ -7,6 +7,9 @@ import { fb, isDemo } from "@/lib/firebase/config";
 import { data } from "@/lib/data";
 import type { AppUser, City, CityRoles, Role } from "@/types";
 
+/** Only these email addresses may access the app. */
+const ALLOWED_EMAILS = ["harsh@bellabona.com"];
+
 export const DEMO_USERS: AppUser[] = [
   { uid: "demo-harsh", name: "Harsh", email: "harsh@example.com", roles: { essen: "manager", dortmund: "manager" } },
   { uid: "demo-driver", name: "Driver (Van 2)", email: "driver@example.com", roles: { essen: "staff" } },
@@ -42,8 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { auth } = fb();
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) {
-      setLoading(false);
-                return;
+        setLoading(false);
+        return;
+      }
+      // Restrict access to allowlisted emails only.
+      if (!ALLOWED_EMAILS.includes((u.email ?? "").toLowerCase())) {
+        await fbSignOut(auth);
+        setLoading(false);
+        return;
       }
       const token = await u.getIdTokenResult(true);
       const claimRoles = (token.claims.roles ?? {}) as CityRoles;
