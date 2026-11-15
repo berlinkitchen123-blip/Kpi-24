@@ -13,7 +13,6 @@ function roleIn(cityId) {
     ? request.auth.token.roles[cityId]
     : (signedIn()
         && request.auth.token.email == "harsh@bellabona.com"
-        && request.auth.token.email_verified == true
         && cityId == "remscheid"
        ? "manager" : null);
 }
